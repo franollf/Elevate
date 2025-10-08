@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+** Elevate **
 
-## Getting Started
+Elevate is a running route finder that helps users discover routes with minimal elevation gain. Built with JavaScript and REST APIs, it combines mapping and elevation data to make running more efficient and enjoyable.
 
-First, run the development server:
+Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Elevate uses geolocation and elevation APIs to calculate and display running routes optimized for elevation, distance, and terrain. The app helps runners choose paths that match their fitness goals—whether that means finding the flattest route or a gentle climb.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Features
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+Generates optimal running routes based on elevation and distance
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Uses REST APIs for map rendering and elevation data
 
-## Learn More
+Displays total elevation gain and route visualization
 
-To learn more about Next.js, take a look at the following resources:
+Simple and responsive interface
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+JavaScript (ES6+)
 
-## Deploy on Vercel
+HTML5 / CSS3
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Map and Elevation APIs (e.g., Mapbox, OpenStreetMap)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Node.js (optional) for API handling
+
+Setup
+
+Clone the repository:
+
+git clone https://github.com/your-username/elevate.git
+cd elevate
+
+
+Add API keys in a .env file:
+
+MAPBOX_API_KEY=your_key
+ELEVATION_API_KEY=your_key
+
+
+Run locally or open index.html in your browser.
+
+Future Plans
+
+Save and compare routes
+
+Import/export GPX files
+
+Integrate weather and terrain data
+
+License
+
+MIT License © 2025 Your Name

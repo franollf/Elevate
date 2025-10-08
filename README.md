@@ -36,9 +36,20 @@ The app helps runners choose routes that match their fitness goals—whether tha
 ```bash
 git clone https://github.com/your-username/elevate.git
 cd elevate
+```
 
-
-**2. Add your API keys
+**2. Add your API keys** 
 Creae a .env file and include 
+```bash
 MAPBOX_API_KEY=your_key
 ELEVATION_API_KEY=your_key
+```
+
+**3. Run Locally **
+If using Node.js:
+```bash
+npm start
+```
+
+## License 
+MIT License © 2025 Franoll Fantu

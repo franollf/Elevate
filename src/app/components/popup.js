@@ -15,7 +15,7 @@ export default function WelcomePopup() {
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
         <div className="bg-white rounded-2xl shadow-xl p-6 w-[350px] border border-gray-200">
           <div className="text-blue-600 text-xl font-semibold mb-2 flex items-center gap-2">
-            <span className="text-xl">ℹ️</span> Welcome to RunRoute Finder
+            <span className="text-xl">ℹ️</span> Welcome to Elevate
           </div>
           <p className="text-gray-700 mb-4 text-sm">
             This app helps you find running routes with minimal elevation gain around your current location.

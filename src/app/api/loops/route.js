@@ -23,6 +23,7 @@ const PEDESTRIAN_COSTING = {
   driveway_factor: 5.0,
   step_penalty: 30, // seconds; runners don't want stairs
   max_hiking_difficulty: 1, // no proper hiking trails
+  use_ferry: 0, // pedestrian routing allows ferries by default (e.g. the SeaBus to Lonsdale)
 };
 
 // Candidate shapes. Loops explore the area; out-and-backs (go half the
@@ -100,6 +101,8 @@ async function valhallaRoute(stops) {
     directions_type: "none",
   });
   if (!data?.trip) return null;
+  // use_ferry: 0 is only a strong preference; never hand a runner a boat ride.
+  if (data.trip.summary.has_ferry) return null;
   const path = [];
   for (const leg of data.trip.legs) {
     for (const [lat, lng] of polyline.decode(leg.shape, 6)) {
@@ -126,6 +129,7 @@ function resample(path, n) {
       lat: path[j].lat + (path[j + 1].lat - path[j].lat) * t,
       lng: path[j].lng + (path[j + 1].lng - path[j].lng) * t,
       d: target,
+      segKm: seg, // length of the straight path segment this sample lies on
     });
   }
   return out;
@@ -159,12 +163,122 @@ async function getElevationProfile(path, distanceKm) {
   if (data.status !== "OK") {
     throw new Error(`Elevation API: ${data.status} ${data.error_message ?? ""}`.trim());
   }
+  // segKm is kept for bridge detection and stripped before the response.
   return data.results.map((r, i) => ({
     lat: pts[i].lat,
     lng: pts[i].lng,
     elevation: r.elevation,
     d: pts[i].d,
+    segKm: pts[i].segKm,
   }));
+}
+
+// ---------- Bridges ----------
+//
+// Elevation data is ground level, so a bridge deck reads as the water or
+// valley beneath it (Lions Gate would "dip" ~60 m to the inlet). For routes
+// that look like they cross something, ask Valhalla which edges are bridges
+// and draw elevation straight across each bridge between its two ends.
+
+const BRIDGE_SEGMENT_KM = 0.25; // bridges are usually drawn as long straight segments
+const WATER_LEVEL_M = 0.5; // Google reports ~0 m or sea-floor depth over water
+
+const BRIDGE_DROP_M = 8; // water-level stretch with ground this much higher close by
+
+/**
+ * Cheap pre-check so we only spend a (rate-limited) trace call on routes that
+ * plausibly cross a bridge: a long straight segment, or a run of water-level
+ * samples flanked within ~100 m by much higher ground (bridge approaches).
+ * A shoreline path like the seawall sits near 0 m on both sides, so it
+ * doesn't trigger.
+ */
+function looksLikeItCrossesSomething(profile) {
+  if (profile.some((p) => p.segKm > BRIDGE_SEGMENT_KM)) return true;
+  const near = 5; // samples (~20 m apart)
+  for (let i = 0; i < profile.length; i++) {
+    if (profile[i].elevation > WATER_LEVEL_M) continue;
+    let k = i;
+    while (k < profile.length && profile[k].elevation <= WATER_LEVEL_M) k++;
+    if (k - i >= 3) {
+      const flank = [
+        ...profile.slice(Math.max(0, i - near), i),
+        ...profile.slice(k, k + near),
+      ];
+      if (flank.some((p) => p.elevation >= BRIDGE_DROP_M)) return true;
+    }
+    i = k;
+  }
+  return false;
+}
+
+/** Bridge geometry along `path` as [[a, b], ...] segments, or null if unavailable. */
+async function bridgeSegments(path) {
+  const data = await valhallaPost("trace_attributes", {
+    shape: path.map(vLoc),
+    shape_match: "map_snap",
+    filters: {
+      attributes: ["edge.bridge", "edge.begin_shape_index", "edge.end_shape_index", "shape"],
+      action: "include",
+    },
+  }).catch(() => null);
+  if (!data?.edges || !data.shape) return null;
+  const shape = polyline.decode(data.shape, 6).map(([lat, lng]) => ({ lat, lng }));
+  const segs = [];
+  for (const e of data.edges) {
+    if (!e.bridge) continue;
+    for (let i = e.begin_shape_index; i < e.end_shape_index; i++) segs.push([shape[i], shape[i + 1]]);
+  }
+  return segs;
+}
+
+/** Distance (km) from point p to segment a–b (equirectangular; fine at this scale). */
+function distToSegmentKm(p, a, b) {
+  const kx = 111.32 * Math.cos((p.lat * Math.PI) / 180);
+  const ky = 110.57;
+  const ax = (a.lng - p.lng) * kx, ay = (a.lat - p.lat) * ky;
+  const bx = (b.lng - p.lng) * kx, by = (b.lat - p.lat) * ky;
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+  return Math.hypot(ax + t * dx, ay + t * dy);
+}
+
+async function fixBridges(profile, path) {
+  if (!looksLikeItCrossesSomething(profile)) return profile;
+  const segs = await bridgeSegments(path);
+  const onBridge = segs
+    ? (p) => segs.some(([a, b]) => distToSegmentKm(p, a, b) < 0.02)
+    : (p) => p.segKm > BRIDGE_SEGMENT_KM || p.elevation < 0; // fallback heuristic
+  return interpolateAcross(profile, onBridge);
+}
+
+/** Replace elevation across runs where `suspect` holds with a straight line between their ends. */
+function interpolateAcross(profile, suspect) {
+  const out = profile.map((p) => ({ ...p }));
+  const flags = out.map(suspect);
+  let i = 0;
+  while (i < out.length) {
+    if (!flags[i]) {
+      i++;
+      continue;
+    }
+    let k = i;
+    while (k < out.length && flags[k]) k++;
+    const a = i > 0 ? out[i - 1] : null;
+    const b = k < out.length ? out[k] : null;
+    if (a || b) {
+      for (let m = i; m < k; m++) {
+        if (a && b) {
+          const t = b.d > a.d ? (out[m].d - a.d) / (b.d - a.d) : 0;
+          out[m].elevation = a.elevation + (b.elevation - a.elevation) * t;
+        } else {
+          out[m].elevation = (a ?? b).elevation;
+        }
+      }
+    }
+    i = k;
+  }
+  return out;
 }
 
 // ---------- Loop construction ----------
@@ -372,7 +486,9 @@ export async function GET(request) {
         let profile = [];
         let elevation = null;
         try {
-          profile = smoothProfile(await getElevationProfile(c.path, c.distanceKm));
+          const raw = await getElevationProfile(c.path, c.distanceKm);
+          const fixed = await fixBridges(raw, c.path);
+          profile = smoothProfile(fixed.map(({ segKm, ...p }) => p));
           elevation = elevationStats(profile);
         } catch (e) {
           console.warn(e.message);

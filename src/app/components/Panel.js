@@ -245,7 +245,7 @@ export default function Panel({
 
             {loading && (
               <div className="space-y-2">
-                <p className="text-xs text-ink-3">Comparing loops and out-and-backs for the flattest options — usually 5–15 seconds.</p>
+                <p className="text-xs text-ink-3">Comparing loops and out-and-backs for the flattest options — usually 10–20 seconds.</p>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="h-[92px] rounded-2xl bg-surface-2 animate-pulse" />
                 ))}

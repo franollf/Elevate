@@ -50,29 +50,49 @@ async function getDirections(start, waypoints) {
   };
 }
 
-async function getElevationProfile(path, distanceKm) {
-  // ~1 sample every 20 m, capped by the API's 512 sample limit.
-  const samples = Math.max(50, Math.min(512, Math.round((distanceKm * 1000) / 20)));
-  // Keep the URL short: thin out the path until the encoded polyline fits.
-  let pts = path;
-  let enc = polyline.encode(pts.map((p) => [p.lat, p.lng]));
-  while (enc.length > 7000 && pts.length > 2) {
-    pts = pts.filter((_, i) => i % 2 === 0 || i === pts.length - 1);
-    enc = polyline.encode(pts.map((p) => [p.lat, p.lng]));
+/** `n` points evenly spaced along the path, each tagged with its distance (km). */
+function resample(path, n) {
+  const cum = [0];
+  for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + haversineKm(path[i - 1], path[i]));
+  const total = cum[cum.length - 1];
+  const out = [];
+  let j = 0;
+  for (let k = 0; k < n; k++) {
+    const target = (k / (n - 1)) * total;
+    while (j < path.length - 2 && cum[j + 1] < target) j++;
+    const seg = cum[j + 1] - cum[j];
+    const t = seg > 0 ? Math.min(1, Math.max(0, (target - cum[j]) / seg)) : 0;
+    out.push({
+      lat: path[j].lat + (path[j + 1].lat - path[j].lat) * t,
+      lng: path[j].lng + (path[j + 1].lng - path[j].lng) * t,
+      d: target,
+    });
   }
+  return out;
+}
+
+const MAX_ELEVATION_POINTS = 512; // Elevation API limit per request
+
+async function getElevationProfile(path, distanceKm) {
+  // Our own evenly spaced points along the real path (~every 20 m, max 512),
+  // so samples follow the route exactly and stay within the API's point limit.
+  const n = Math.max(50, Math.min(MAX_ELEVATION_POINTS, Math.round((distanceKm * 1000) / 20)));
+  const pts = resample(path, n);
+  const enc = polyline.encode(pts.map((p) => [p.lat, p.lng]));
   const url =
     "https://maps.googleapis.com/maps/api/elevation/json" +
-    `?path=enc:${encodeURIComponent(enc)}&samples=${samples}&key=${KEY}`;
+    `?locations=enc:${encodeURIComponent(enc)}&key=${KEY}`;
   const res = await fetch(url, { cache: "no-store" });
   const data = await res.json();
-  if (data.status !== "OK") throw new Error(`Elevation API: ${data.status}`);
-
-  let d = 0;
-  return data.results.map((r, i, arr) => {
-    const p = { lat: r.location.lat, lng: r.location.lng };
-    if (i > 0) d += haversineKm(arr[i - 1].location, r.location);
-    return { ...p, elevation: r.elevation, d };
-  });
+  if (data.status !== "OK") {
+    throw new Error(`Elevation API: ${data.status} ${data.error_message ?? ""}`.trim());
+  }
+  return data.results.map((r, i) => ({
+    lat: pts[i].lat,
+    lng: pts[i].lng,
+    elevation: r.elevation,
+    d: pts[i].d,
+  }));
 }
 
 // ---------- Loop construction ----------

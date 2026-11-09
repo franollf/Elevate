@@ -250,6 +250,22 @@ export default function Home() {
             />
           )}
 
+          {selected?.turnaround && (
+            <Marker
+              position={selected.turnaround}
+              zIndex={9}
+              title="Turnaround"
+              icon={{
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 6,
+                fillColor: "#ffffff",
+                fillOpacity: 1,
+                strokeColor: "#15201b",
+                strokeWeight: 3,
+              }}
+            />
+          )}
+
           {hoverPt && (
             <Marker
               position={hoverPt}

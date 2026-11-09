@@ -75,10 +75,18 @@ ${trkpts}
 `;
 }
 
-/** Google Maps walking-directions link that reproduces the loop. */
+/**
+ * Google Maps walking-directions link that approximates the route. Google
+ * would pick its own path between sparse waypoints, so pin it to 8 points
+ * sampled along our actual path (Google's URL limit is ~9 waypoints).
+ */
 export function googleMapsUrl(route) {
   const s = `${route.start.lat},${route.start.lng}`;
-  const wps = route.waypoints.map((w) => `${w.lat},${w.lng}`).join("|");
+  const n = 8;
+  const pts = Array.from({ length: n }, (_, i) =>
+    route.path[Math.round(((i + 1) * (route.path.length - 1)) / (n + 1))]
+  );
+  const wps = pts.map((w) => `${w.lat.toFixed(6)},${w.lng.toFixed(6)}`).join("|");
   return (
     `https://www.google.com/maps/dir/?api=1&travelmode=walking` +
     `&origin=${encodeURIComponent(s)}&destination=${encodeURIComponent(s)}` +

@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Elevate · Running loops",
-  description: "Find low-elevation running loops that start and finish where you are.",
+  title: "Elevate · Flat running routes",
+  description: "Find flat running loops and out-and-backs that start and finish where you are.",
 };
 
 export const viewport = {

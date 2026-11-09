@@ -43,7 +43,7 @@ function Logo() {
       </div>
       <div className="leading-tight">
         <h1 className="text-[17px] font-semibold tracking-tight">Elevate</h1>
-        <p className="text-xs text-ink-3">Low-elevation running loops</p>
+        <p className="text-xs text-ink-3">Flat running routes</p>
       </div>
     </div>
   );
@@ -123,7 +123,7 @@ export default function Panel({
         <Logo />
         {routes.length > 0 && (
           <span className="text-xs font-medium text-ink-3 tabular-nums">
-            {routes.length} loop{routes.length > 1 ? "s" : ""}
+            {routes.length} route{routes.length > 1 ? "s" : ""}
           </span>
         )}
       </div>
@@ -208,15 +208,15 @@ export default function Panel({
           >
             {loading ? (
               <>
-                <Loader2 size={18} className="animate-spin" /> Finding loops…
+                <Loader2 size={18} className="animate-spin" /> Finding flat routes…
               </>
             ) : searched ? (
               <>
-                <Shuffle size={17} /> Find new loops
+                <Shuffle size={17} /> Find new routes
               </>
             ) : (
               <>
-                <RouteIcon size={17} /> Find loops
+                <RouteIcon size={17} /> Find routes
               </>
             )}
           </button>
@@ -227,7 +227,7 @@ export default function Panel({
         {(loading || routes.length > 0 || searched) && (
           <section className="px-5 pb-6 border-t border-line pt-4">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">Loops</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">Routes</span>
               <div className="flex bg-surface-2 rounded-lg p-0.5">
                 {SORTS.map((s) => (
                   <button
@@ -245,6 +245,7 @@ export default function Panel({
 
             {loading && (
               <div className="space-y-2">
+                <p className="text-xs text-ink-3">Comparing loops and out-and-backs for the flattest options — usually 5–15 seconds.</p>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="h-[92px] rounded-2xl bg-surface-2 animate-pulse" />
                 ))}
@@ -253,7 +254,7 @@ export default function Panel({
 
             {!loading && searched && routes.length === 0 && !error && (
               <div className="text-center py-8 text-sm text-ink-3">
-                No loops found near this point. Try a different start or distance.
+                No routes found near this point. Try a different start or distance.
               </div>
             )}
 
@@ -285,6 +286,7 @@ export default function Panel({
                             <ChevronDown size={16} className={`text-ink-3 transition-transform ${active ? "rotate-180" : ""}`} />
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-xs text-ink-2 tabular-nums">
+                            <span className="text-ink-3">{r.type === "out-and-back" ? "Out & back" : "Loop"}</span>
                             <span>↑ {e ? `${e.gain} m` : "–"}</span>
                             <span>{formatDuration(r.distanceKm * pace)}</span>
                             {e && <span>max {e.steepest}%</span>}
@@ -343,7 +345,7 @@ export default function Panel({
                                   onClick={() =>
                                     download(
                                       `elevate-${r.distanceKm.toFixed(1)}km.gpx`,
-                                      toGpx(r, `Elevate ${r.distanceKm.toFixed(1)} km loop`),
+                                      toGpx(r, `Elevate ${r.distanceKm.toFixed(1)} km run`),
                                       "application/gpx+xml"
                                     )
                                   }
@@ -380,8 +382,8 @@ export default function Panel({
             <div className="rounded-2xl bg-surface-2 p-4 text-sm text-ink-2 space-y-2">
               <p className="font-medium text-ink">How it works</p>
               <ol className="list-decimal list-inside space-y-1 text-ink-2 text-[13px]">
-                <li>Pick a start point — every loop finishes where it starts.</li>
-                <li>Choose a distance and hit <span className="font-medium">Find loops</span>.</li>
+                <li>Pick a start point — every route finishes where it starts.</li>
+                <li>Choose a distance and hit <span className="font-medium">Find routes</span>.</li>
                 <li>Compare elevation, then export a GPX for your watch.</li>
               </ol>
             </div>

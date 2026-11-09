@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@garmin/fitsdk": "21.218.0",
     "@mapbox/polyline": "^1.2.1",
     "@react-google-maps/api": "^2.20.6",
     "lucide-react": "^0.512.0",

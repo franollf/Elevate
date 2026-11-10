@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 const W = 600;
 const H = 140;
@@ -11,6 +11,30 @@ const H = 140;
  */
 export default function ElevationChart({ profile, hoverIdx, onHover }) {
   const ref = useRef(null);
+
+  // Pointer events fire far faster than the screen refreshes. Coalesce them to
+  // one update per animation frame, and only when the hovered sample changes,
+  // so fast mouse movement can't flood React with state updates.
+  const frame = useRef(0);
+  const pending = useRef(null);
+  const lastSent = useRef(undefined);
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+  const emit = (idx) => {
+    pending.current = idx;
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      if (pending.current !== lastSent.current) {
+        lastSent.current = pending.current;
+        onHoverRef.current?.(pending.current);
+      }
+    });
+  };
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  useEffect(() => {
+    lastSent.current = undefined; // new route: allow re-sending the same index
+  }, [profile]);
 
   const geom = useMemo(() => {
     if (!profile?.length) return null;
@@ -49,7 +73,7 @@ export default function ElevationChart({ profile, hoverIdx, onHover }) {
     for (let i = 1; i < profile.length; i++) {
       if (Math.abs(profile[i].d - target) < Math.abs(profile[best].d - target)) best = i;
     }
-    onHover?.(best);
+    emit(best);
   };
 
   const hp = hoverIdx != null ? profile[hoverIdx] : null;
@@ -61,7 +85,7 @@ export default function ElevationChart({ profile, hoverIdx, onHover }) {
         className="relative h-36 cursor-crosshair"
         onPointerMove={handleMove}
         onPointerDown={handleMove}
-        onPointerLeave={() => onHover?.(null)}
+        onPointerLeave={() => emit(null)}
       >
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
           <defs>

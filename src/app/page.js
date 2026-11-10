@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF as Marker, PolylineF as Polyline, useJsApiLoader } from "@react-google-maps/api";
 import Panel, { GRADES } from "./components/Panel";
 
@@ -45,12 +45,61 @@ function gradeSegments(profile) {
     const c = colorAt(i);
     const pt = { lat: profile[i].lat, lng: profile[i].lng };
     if (!cur || cur.color !== c) {
-      cur = { color: c, path: cur ? [cur.path[cur.path.length - 1], pt] : [pt] };
+      cur = { color: c, style: gradeStyle(c), path: cur ? [cur.path[cur.path.length - 1], pt] : [pt] };
       segs.push(cur);
     } else cur.path.push(pt);
   }
   return segs;
 }
+
+// Static overlay styles: stable objects so map overlays aren't reconfigured on every render.
+const CASING = { strokeColor: "#ffffff", strokeOpacity: 1, strokeWeight: 10, zIndex: 2 };
+const PLAIN_SELECTED = { strokeColor: "#0f9d6b", strokeWeight: 5, zIndex: 3 };
+const OTHER_DIM = { strokeColor: "#15201b", strokeOpacity: 0.18, strokeWeight: 3, zIndex: 1 };
+const OTHER = { strokeColor: "#15201b", strokeOpacity: 0.45, strokeWeight: 3, zIndex: 1 };
+const gradeStyle = (color) => ({ strokeColor: color, strokeOpacity: 1, strokeWeight: 5, zIndex: 3 });
+const circleIcon = (scale, fillColor, strokeColor) => () => ({
+  path: window.google.maps.SymbolPath.CIRCLE,
+  scale,
+  fillColor,
+  fillOpacity: 1,
+  strokeColor,
+  strokeWeight: 3,
+});
+const startIcon = circleIcon(9, "#15201b", "#ffffff");
+const turnIcon = circleIcon(6, "#ffffff", "#15201b");
+const hoverIcon = circleIcon(7, "#ffffff", "#0f9d6b");
+
+/**
+ * Routes and markers. Memoised so hovering the elevation chart (which updates
+ * many times a second) only moves the hover dot instead of re-rendering every
+ * polyline on the map.
+ */
+const RouteLayers = memo(function RouteLayers({ routes, selected, segments, start, onSelect, icons }) {
+  return (
+    <>
+      {routes
+        .filter((r) => r.id !== selected?.id)
+        .map((r) => (
+          <Polyline key={r.id} path={r.path} onClick={() => onSelect(r.id)} options={selected ? OTHER_DIM : OTHER} />
+        ))}
+
+      {selected && (
+        <>
+          <Polyline path={selected.path} options={CASING} />
+          {segments.length ? (
+            segments.map((s, i) => <Polyline key={`${selected.id}-${i}`} path={s.path} options={s.style} />)
+          ) : (
+            <Polyline path={selected.path} options={PLAIN_SELECTED} />
+          )}
+        </>
+      )}
+
+      {start && <Marker position={start} zIndex={10} title="Start / finish" icon={icons.start} />}
+      {selected?.turnaround && <Marker position={selected.turnaround} zIndex={9} title="Turnaround" icon={icons.turn} />}
+    </>
+  );
+});
 
 function loadPace() {
   try {
@@ -169,8 +218,16 @@ export default function Home() {
     if (routes.length) setSelectedId((id) => id ?? sorted[0].id);
   }, [routes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selected = routes.find((r) => r.id === selectedId) ?? null;
+  const selected = useMemo(() => routes.find((r) => r.id === selectedId) ?? null, [routes, selectedId]);
   const segments = useMemo(() => gradeSegments(selected?.profile), [selected]);
+  const icons = useMemo(
+    () => (isLoaded ? { start: startIcon(), turn: turnIcon(), hover: hoverIcon() } : null),
+    [isLoaded]
+  );
+  const selectRoute = useCallback((id) => {
+    setHoverIdx(null);
+    setSelectedId(id);
+  }, []);
 
   // Frame the selected loop with room for the panel.
   useEffect(() => {
@@ -208,77 +265,23 @@ export default function Home() {
           onUnmount={() => (mapRef.current = null)}
           onClick={(e) => changeStart({ lat: e.latLng.lat(), lng: e.latLng.lng() }, "Dropped pin")}
         >
-          {/* Other loops, faded and clickable */}
-          {routes
-            .filter((r) => r.id !== selectedId)
-            .map((r) => (
-              <Polyline
-                key={r.id}
-                path={r.path}
-                onClick={() => setSelectedId(r.id)}
-                options={{ strokeColor: "#15201b", strokeOpacity: selected ? 0.18 : 0.45, strokeWeight: 3, zIndex: 1 }}
-              />
-            ))}
+          <RouteLayers
+            routes={routes}
+            selected={selected}
+            segments={segments}
+            start={start}
+            onSelect={selectRoute}
+            icons={icons}
+          />
 
-          {/* Selected loop: white casing + grade-coloured line */}
+          {/* Always mounted (just hidden) so hovering only moves it. */}
           {selected && (
-            <>
-              <Polyline path={selected.path} options={{ strokeColor: "#ffffff", strokeOpacity: 1, strokeWeight: 10, zIndex: 2 }} />
-              {segments.length ? (
-                segments.map((s, i) => (
-                  <Polyline key={i} path={s.path} options={{ strokeColor: s.color, strokeOpacity: 1, strokeWeight: 5, zIndex: 3 }} />
-                ))
-              ) : (
-                <Polyline path={selected.path} options={{ strokeColor: "#0f9d6b", strokeWeight: 5, zIndex: 3 }} />
-              )}
-            </>
-          )}
-
-          {start && (
             <Marker
-              position={start}
-              zIndex={10}
-              title="Start / finish"
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 9,
-                fillColor: "#15201b",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 3,
-              }}
-            />
-          )}
-
-          {selected?.turnaround && (
-            <Marker
-              position={selected.turnaround}
-              zIndex={9}
-              title="Turnaround"
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 6,
-                fillColor: "#ffffff",
-                fillOpacity: 1,
-                strokeColor: "#15201b",
-                strokeWeight: 3,
-              }}
-            />
-          )}
-
-          {hoverPt && (
-            <Marker
-              position={hoverPt}
+              position={hoverPt ?? selected.path[0]}
+              visible={!!hoverPt}
               zIndex={11}
               clickable={false}
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 7,
-                fillColor: "#ffffff",
-                fillOpacity: 1,
-                strokeColor: "#0f9d6b",
-                strokeWeight: 3,
-              }}
+              icon={icons.hover}
             />
           )}
         </GoogleMap>
@@ -306,10 +309,7 @@ export default function Home() {
           sort={sort}
           setSort={setSort}
           selectedId={selectedId}
-          setSelectedId={(id) => {
-            setHoverIdx(null);
-            setSelectedId(id);
-          }}
+          setSelectedId={selectRoute}
           hoverIdx={hoverIdx}
           setHoverIdx={setHoverIdx}
         />
